@@ -854,6 +854,51 @@ def pozisyon_cikis_hesapla(
         "stop_sonrasi_guncel": getiri_yuzde(cikis_fiyati, son_close) if cikis_nedeni == "STOP" else None,
     }
 
+def takip_ozet_guncelle(wb, ws_takip, headers, yeni_al, guncellenen, kapanan):
+    sayfa_adi = "ÖZET"
+    if sayfa_adi in wb.sheetnames:
+        ws = wb[sayfa_adi]
+        ws.delete_rows(1, ws.max_row)
+    else:
+        ws = wb.create_sheet(sayfa_adi, 0)
+
+    toplam_islem = max(ws_takip.max_row - 1, 0)
+    acik_islem = 0
+    stop_islem = 0
+    kar_stop_islem = 0
+
+    durum_col = headers.get("Durum")
+    if durum_col is not None:
+        for row in range(2, ws_takip.max_row + 1):
+            durum = str(ws_takip.cell(row=row, column=durum_col).value or "").strip().upper()
+            if durum == "AÇIK":
+                acik_islem += 1
+            elif durum == "STOP":
+                stop_islem += 1
+            elif durum == "KAR STOP":
+                kar_stop_islem += 1
+
+    rows = [
+        ("Son Güncelleme", datetime.now().strftime("%d.%m.%Y %H:%M:%S")),
+        ("Veri Kaynağı", DATA_SOURCE),
+        ("Fallback", "AÇIK" if ALLOW_DATA_FALLBACK else "KAPALI"),
+        ("Yeni AL", yeni_al),
+        ("Güncellenen Satır", guncellenen),
+        ("Yeni Kapanan İşlem", kapanan),
+        ("Toplam İşlem", toplam_islem),
+        ("Açık İşlem", acik_islem),
+        ("STOP İşlem", stop_islem),
+        ("KAR STOP İşlem", kar_stop_islem),
+        ("Script Versiyon", SCRIPT_VERSION),
+    ]
+
+    ws.append(["Alan", "Değer"])
+    for row in rows:
+        ws.append(list(row))
+
+    ws.column_dimensions["A"].width = 24
+    ws.column_dimensions["B"].width = 28
+
 def takip_excel_guncelle(al_listesi):
     if not TAKIP_EXCEL_GUNCELLE:
         return
@@ -1032,6 +1077,7 @@ def takip_excel_guncelle(al_listesi):
         mevcut_alis_kayitlari.add((hisse, sinyal_tarihi))
         eklenen += 1
 
+    takip_ozet_guncelle(wb, ws, headers, eklenen, guncellenen, kapanan)
     wb.save(dosya)
     wb.close()
     print(f"  Takip Excel guncellendi: {dosya} | yeni AL: {eklenen}, guncel fiyat: {guncellenen}, kapanan: {kapanan}")
